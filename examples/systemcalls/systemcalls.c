@@ -1,5 +1,12 @@
 #include "systemcalls.h"
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,6 +23,14 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    int pid = system(cmd);
+
+    if(pid!=0)
+    {
+        perror("excute failed!");
+        return false;
+    }
+
 
     return true;
 }
@@ -58,6 +73,30 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    int status;
+    pid_t pid;
+    fflush(stdout);
+    pid = fork ();
+
+    if (pid == -1)
+    {
+        perror("fork");
+        return false;
+    }
+    else if (pid == 0) 
+    {
+        execv (command[0], command);
+        exit(-1);
+    }
+
+    waitpid (pid, &status, 0);
+    if (WIFEXITED (status))
+    {
+        if(WEXITSTATUS(status))
+        {
+            return false;
+        }
+    }
 
     va_end(args);
 
@@ -92,8 +131,53 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    fflush(stdout);
+    pid_t  task = fork();
+    int status;
+    int  fd = open(outputfile, O_WRONLY|O_CREAT|O_TRUNC,0777);
+    if (fd < 0)
+    {
+        perror("error file descriptor");
+        va_end(args);
+        return false;
+    }
 
+    switch (task)
+    {
+    case -1:
+        perror("fork failed!");
+        exit(errno);
+        break;
+    case 0:
+        if(dup2(fd,STDOUT_FILENO)<0)
+        {
+            perror("dupicated failed!");
+            return false;
+        }
+        close(fd);
+        int exe = execv(command[0],command);
+        if (exe == -1)
+        {
+            perror("execv failed!");
+            return false;
+        }
+        return true;
+
+    default:
+        int pid = waitpid(task,&status,0);
+
+        if (pid == -1)
+        {
+            perror("wait failed!");
+        }
+        if(WIFEXITED(status))
+        {
+            printf("Normal exit wiht exit status %d\n",WEXITSTATUS(status));
+            va_end(args);
+            return true;
+        }
+        break;
+    }
     va_end(args);
-
-    return true;
+    return false;
 }
