@@ -155,27 +155,14 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
             return false;
         }
         close(fd);
-        int exe = execv(command[0],command);
-        if (exe == -1)
-        {
-            perror("execv failed!");
-            return false;
-        }
-        return true;
+        execv(command[0],command);
+        exit(-1);
 
     default:
-        int pid = waitpid(task,&status,0);
-
-        if (pid == -1)
-        {
-            perror("wait failed!");
-        }
-        if(WIFEXITED(status))
-        {
-            printf("Normal exit wiht exit status %d\n",WEXITSTATUS(status));
-            va_end(args);
-            return true;
-        }
+        if (waitpid (task, &status, 0) == -1)
+        return  false;
+        else if (WIFEXITED (status))
+        return WEXITSTATUS (status);
         break;
     }
     va_end(args);
